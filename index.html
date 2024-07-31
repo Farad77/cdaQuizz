@@ -50,6 +50,8 @@
         }
         #documentation {
             margin-bottom: 30px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 20px;
         }
         #subject-select {
             margin-bottom: 20px;
@@ -68,6 +70,10 @@
         .radio-list li {
             margin-bottom: 5px;
         }
+        #quiz-title {
+            margin-top: 30px;
+            color: #3498db;
+        }
     </style>
 </head>
 <body>
@@ -79,6 +85,7 @@
 
     <div id="documentation" class="hidden"></div>
     
+    <h2 id="quiz-title" class="hidden">Questionnaire</h2>
     <div id="quiz" class="hidden"></div>
 
     <button onclick="checkAnswers()" id="validate" class="hidden">Valider</button>
@@ -141,21 +148,24 @@
             const lines = markdown.split('\n');
             const corrections = {};
             let currentQuestion = null;
-            let readingAnswer = false;
+            let currentAnswer = '';
 
             for (const line of lines) {
                 if (line.match(/^\d+\.\s/)) {
+                    if (currentQuestion) {
+                        corrections[currentQuestion] = currentAnswer.trim();
+                    }
                     currentQuestion = line.trim();
-                    readingAnswer = false;
-                } else if (line.trim().startsWith('Réponse correcte :')) {
-                    corrections[currentQuestion] = line.split(':')[1].trim();
-                    readingAnswer = false;
-                } else if (line.trim().startsWith('Réponse modèle :')) {
-                    corrections[currentQuestion] = '';
-                    readingAnswer = true;
-                } else if (readingAnswer && line.trim() !== '') {
-                    corrections[currentQuestion] += line.trim() + ' ';
+                    currentAnswer = '';
+                } else if (line.trim().startsWith('Réponse correcte :') || line.trim().startsWith('Réponse modèle :')) {
+                    currentAnswer = line.split(':')[1].trim();
+                } else if (line.trim() !== '') {
+                    currentAnswer += ' ' + line.trim();
                 }
+            }
+
+            if (currentQuestion) {
+                corrections[currentQuestion] = currentAnswer.trim();
             }
 
             return corrections;
@@ -217,6 +227,7 @@
 
                 generateQuiz(quizData);
                 document.getElementById('documentation').classList.remove('hidden');
+                document.getElementById('quiz-title').classList.remove('hidden');
                 document.getElementById('quiz').classList.remove('hidden');
                 document.getElementById('validate').classList.remove('hidden');
             } catch (error) {
