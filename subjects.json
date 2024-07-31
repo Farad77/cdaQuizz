@@ -1,1 +1,17 @@
-["junit"]
+[
+    "redis",
+    "mysql",
+    "postgresql",
+    "splunk",
+    "aws",
+    "chef",
+    "puppet",
+    "travisci",
+    "githubactions",
+    "jenkins",
+    "git",
+    "nodejs",
+    "mongodb",
+    "docker",
+    "junit"
+  ]
