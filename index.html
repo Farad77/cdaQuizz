@@ -54,6 +54,13 @@
         #subject-select {
             margin-bottom: 20px;
         }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -99,6 +106,7 @@
             const lines = markdown.split('\n');
             const questions = [];
             let currentQuestion = null;
+            let readingChoices = false;
 
             for (const line of lines) {
                 if (line.startsWith('##')) {
@@ -106,15 +114,25 @@
                         questions.push(currentQuestion);
                     }
                     currentQuestion = { type: '', question: line.substring(3).trim(), choices: [] };
-                } else if (line.startsWith('   ')) {
-                    currentQuestion.choices.push(line.trim());
-                } else if (line.trim() !== '') {
+                    readingChoices = false;
+                } else if (line.trim().startsWith('##')) {
+                    // Pour gérer les cas où il n'y a pas d'espace après ##
                     if (currentQuestion) {
-                        if (!currentQuestion.type) {
-                            currentQuestion.type = line.toLowerCase().includes('choix unique') ? 'multiple' : 'open';
-                        } else {
-                            currentQuestion.question += ' ' + line.trim();
-                        }
+                        questions.push(currentQuestion);
+                    }
+                    currentQuestion = { type: '', question: line.substring(2).trim(), choices: [] };
+                    readingChoices = false;
+                } else if (line.trim().toLowerCase().includes('choix unique')) {
+                    currentQuestion.type = 'multiple';
+                    readingChoices = true;
+                } else if (readingChoices && line.trim().startsWith('-')) {
+                    currentQuestion.choices.push(line.trim().substring(1).trim());
+                } else if (line.trim() !== '') {
+                    if (currentQuestion && !currentQuestion.type) {
+                        currentQuestion.type = 'open';
+                    }
+                    if (currentQuestion) {
+                        currentQuestion.question += ' ' + line.trim();
                     }
                 }
             }
@@ -130,14 +148,20 @@
             const lines = markdown.split('\n');
             const corrections = {};
             let currentQuestion = null;
+            let readingAnswer = false;
 
             for (const line of lines) {
                 if (line.startsWith('##')) {
                     currentQuestion = line.substring(3).trim();
-                } else if (line.startsWith('   Réponse correcte :')) {
+                    readingAnswer = false;
+                } else if (line.trim().startsWith('   Réponse correcte :')) {
                     corrections[currentQuestion] = line.split(':')[1].trim();
-                } else if (line.startsWith('   Réponse modèle :')) {
-                    corrections[currentQuestion] = line.split(':')[1].trim();
+                    readingAnswer = false;
+                } else if (line.trim().startsWith('   Réponse modèle :')) {
+                    corrections[currentQuestion] = '';
+                    readingAnswer = true;
+                } else if (readingAnswer && line.trim() !== '') {
+                    corrections[currentQuestion] += line.trim() + ' ';
                 }
             }
 
@@ -167,7 +191,6 @@
                 } else {
                     const textarea = document.createElement('textarea');
                     textarea.rows = 4;
-                    textarea.cols = 50;
                     textarea.id = `q${index}`;
                     questionDiv.appendChild(textarea);
                 }
@@ -227,7 +250,8 @@
                     }
                 } else {
                     const answer = document.getElementById(`q${index}`).value.trim().toLowerCase();
-                    if (answer.includes(correctAnswer.toLowerCase().split(' ')[0]) && answer.length > 10) {
+                    const correctAnswerLower = correctAnswer.toLowerCase();
+                    if (answer.length > 10 && correctAnswerLower.split(' ').some(word => answer.includes(word))) {
                         feedback.textContent = "Bonne compréhension générale. Voici la réponse complète :";
                         feedback.classList.add('correct');
                         score++;
