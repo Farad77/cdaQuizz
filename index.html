@@ -14,7 +14,7 @@
             margin: 0 auto;
             padding: 20px;
         }
-        h1, h2 {
+        h1, h2, h3 {
             color: #2c3e50;
         }
         .question {
@@ -120,13 +120,21 @@
             const lines = markdown.split('\n');
             const questions = [];
             let currentQuestion = null;
+            let currentSection = '';
 
             for (const line of lines) {
-                if (line.match(/^\d+\.\s/)) {
+                if (line.startsWith('## ')) {
+                    currentSection = line.substring(3).trim();
+                } else if (line.match(/^\d+\.\s/)) {
                     if (currentQuestion) {
                         questions.push(currentQuestion);
                     }
-                    currentQuestion = { question: line.trim(), choices: [], type: 'open' };
+                    currentQuestion = { 
+                        question: line.trim(), 
+                        choices: [], 
+                        type: 'open',
+                        section: currentSection
+                    };
                 } else if (line.trim().match(/^[a-d]\)/)) {
                     currentQuestion.type = 'multiple';
                     currentQuestion.choices.push(line.trim());
@@ -174,7 +182,16 @@
         function generateQuiz(questions) {
             const quizContainer = document.getElementById('quiz');
             quizContainer.innerHTML = ''; // Clear previous quiz
+            let currentSection = '';
+
             questions.forEach((q, index) => {
+                if (q.section !== currentSection) {
+                    currentSection = q.section;
+                    const sectionHeader = document.createElement('h3');
+                    sectionHeader.textContent = currentSection;
+                    quizContainer.appendChild(sectionHeader);
+                }
+
                 const questionDiv = document.createElement('div');
                 questionDiv.className = 'question';
                 questionDiv.innerHTML = `<p>${q.question}</p>`;
@@ -249,12 +266,19 @@
 
                 if (questionData.type === 'multiple') {
                     const selectedAnswer = question.querySelector('input[type="radio"]:checked');
-                    if (selectedAnswer && selectedAnswer.value === correctAnswer) {
-                        feedback.textContent = "Correct !";
-                        feedback.classList.add('correct');
-                        score++;
+                    if (selectedAnswer) {
+                        const selectedValue = selectedAnswer.value.toLowerCase();
+                        const correctValue = correctAnswer.toLowerCase().charAt(0);
+                        if (selectedValue === correctValue) {
+                            feedback.textContent = "Correct !";
+                            feedback.classList.add('correct');
+                            score++;
+                        } else {
+                            feedback.textContent = `Incorrect. La bonne réponse est : ${correctAnswer}`;
+                            feedback.classList.add('incorrect');
+                        }
                     } else {
-                        feedback.textContent = `Incorrect. La bonne réponse est : ${correctAnswer}`;
+                        feedback.textContent = "Veuillez sélectionner une réponse.";
                         feedback.classList.add('incorrect');
                     }
                 } else {
