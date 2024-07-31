@@ -61,11 +61,11 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
-        .checkbox-list {
+        .radio-list {
             list-style-type: none;
             padding-left: 0;
         }
-        .checkbox-list li {
+        .radio-list li {
             margin-bottom: 5px;
         }
     </style>
@@ -113,23 +113,16 @@
             const lines = markdown.split('\n');
             const questions = [];
             let currentQuestion = null;
-            let readingChoices = false;
 
             for (const line of lines) {
-                if (line.match(/^\d+\.\s*Questions? à choix/i)) {
+                if (line.match(/^\d+\.\s/)) {
                     if (currentQuestion) {
                         questions.push(currentQuestion);
                     }
-                    currentQuestion = { type: 'multiple', question: '', choices: [] };
-                    readingChoices = false;
-                } else if (line.match(/^\d+\.\s/)) {
-                    if (currentQuestion) {
-                        questions.push(currentQuestion);
-                    }
-                    currentQuestion = { type: 'multiple', question: line.trim(), choices: [] };
-                    readingChoices = true;
-                } else if (readingChoices && line.trim().startsWith('-')) {
-                    currentQuestion.choices.push(line.trim().substring(1).trim());
+                    currentQuestion = { question: line.trim(), choices: [], type: 'open' };
+                } else if (line.trim().match(/^[a-d]\)/)) {
+                    currentQuestion.type = 'multiple';
+                    currentQuestion.choices.push(line.trim());
                 } else if (line.trim() !== '') {
                     if (currentQuestion) {
                         currentQuestion.question += ' ' + line.trim();
@@ -180,12 +173,12 @@
                     const answersDiv = document.createElement('div');
                     answersDiv.className = 'answers';
                     const choicesList = document.createElement('ul');
-                    choicesList.className = 'checkbox-list';
+                    choicesList.className = 'radio-list';
                     q.choices.forEach((choice, choiceIndex) => {
                         const listItem = document.createElement('li');
                         listItem.innerHTML = `
                             <label>
-                                <input type="checkbox" name="q${index}" value="${String.fromCharCode(97 + choiceIndex)}">
+                                <input type="radio" name="q${index}" value="${choice.charAt(0)}">
                                 ${choice}
                             </label>
                         `;
@@ -244,12 +237,8 @@
                 const correctAnswer = corrections[questionData.question];
 
                 if (questionData.type === 'multiple') {
-                    const selectedAnswers = Array.from(question.querySelectorAll('input[type="checkbox"]:checked'))
-                        .map(input => input.value);
-                    const correctAnswers = correctAnswer.split(',').map(a => a.trim());
-                    
-                    if (selectedAnswers.length === correctAnswers.length &&
-                        selectedAnswers.every(a => correctAnswers.includes(a))) {
+                    const selectedAnswer = question.querySelector('input[type="radio"]:checked');
+                    if (selectedAnswer && selectedAnswer.value === correctAnswer) {
                         feedback.textContent = "Correct !";
                         feedback.classList.add('correct');
                         score++;
