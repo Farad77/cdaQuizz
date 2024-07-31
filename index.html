@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Multi-sujets Dynamique</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/2.0.3/marked.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        .question {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .answers {
+            margin-top: 10px;
+        }
+        button, select {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        button:hover, select:hover {
+            background-color: #2980b9;
+        }
+        .hidden {
+            display: none;
+        }
+        .correct {
+            color: green;
+            font-weight: bold;
+        }
+        .incorrect {
+            color: red;
+        }
+        #documentation {
+            margin-bottom: 30px;
+        }
+        #subject-select {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Quiz Multi-sujets Dynamique</h1>
+    
+    <select id="subject-select" onchange="loadQuiz(this.value)">
+        <option value="">Choisissez un sujet</option>
+    </select>
+
+    <div id="documentation" class="hidden"></div>
+    
+    <div id="quiz" class="hidden"></div>
+
+    <button onclick="checkAnswers()" id="validate" class="hidden">Valider</button>
+
+    <script>
+        let quizData = {};
+        let corrections = {};
+
+        async function loadMarkdownFile(url) {
+            const response = await fetch(url);
+            return response.text();
+        }
+
+        async function listSubjects() {
+            try {
+                const response = await fetch('subjects.json');
+                const subjects = await response.json();
+                const select = document.getElementById('subject-select');
+                subjects.forEach(subject => {
+                    const option = document.createElement('option');
+                    option.value = subject;
+                    option.textContent = subject.charAt(0).toUpperCase() + subject.slice(1);
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading subjects:', error);
+                document.body.innerHTML = '<h1>Error loading subjects. Please try again later.</h1>';
+            }
+        }
+
+        function parseQuestions(markdown) {
+            const lines = markdown.split('\n');
+            const questions = [];
+            let currentQuestion = null;
+
+            for (const line of lines) {
+                if (line.startsWith('##')) {
+                    if (currentQuestion) {
+                        questions.push(currentQuestion);
+                    }
+                    currentQuestion = { type: '', question: line.substring(3).trim(), choices: [] };
+                } else if (line.startsWith('   ')) {
+                    currentQuestion.choices.push(line.trim());
+                } else if (line.trim() !== '') {
+                    if (currentQuestion) {
+                        if (!currentQuestion.type) {
+                            currentQuestion.type = line.toLowerCase().includes('choix unique') ? 'multiple' : 'open';
+                        } else {
+                            currentQuestion.question += ' ' + line.trim();
+                        }
+                    }
+                }
+            }
+
+            if (currentQuestion) {
+                questions.push(currentQuestion);
+            }
+
+            return questions;
+        }
+
+        function parseCorrections(markdown) {
+            const lines = markdown.split('\n');
+            const corrections = {};
+            let currentQuestion = null;
+
+            for (const line of lines) {
+                if (line.startsWith('##')) {
+                    currentQuestion = line.substring(3).trim();
+                } else if (line.startsWith('   Réponse correcte :')) {
+                    corrections[currentQuestion] = line.split(':')[1].trim();
+                } else if (line.startsWith('   Réponse modèle :')) {
+                    corrections[currentQuestion] = line.split(':')[1].trim();
+                }
+            }
+
+            return corrections;
+        }
+
+        function generateQuiz(questions) {
+            const quizContainer = document.getElementById('quiz');
+            quizContainer.innerHTML = ''; // Clear previous quiz
+            questions.forEach((q, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question';
+                questionDiv.innerHTML = `<p>${index + 1}. ${q.question}</p>`;
+
+                if (q.type === 'multiple') {
+                    const answersDiv = document.createElement('div');
+                    answersDiv.className = 'answers';
+                    q.choices.forEach((choice, choiceIndex) => {
+                        answersDiv.innerHTML += `
+                            <label>
+                                <input type="radio" name="q${index}" value="${String.fromCharCode(97 + choiceIndex)}">
+                                ${choice}
+                            </label><br>
+                        `;
+                    });
+                    questionDiv.appendChild(answersDiv);
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.rows = 4;
+                    textarea.cols = 50;
+                    textarea.id = `q${index}`;
+                    questionDiv.appendChild(textarea);
+                }
+
+                const feedback = document.createElement('p');
+                feedback.className = 'feedback hidden';
+                questionDiv.appendChild(feedback);
+
+                quizContainer.appendChild(questionDiv);
+            });
+        }
+
+        async function loadQuiz(subject) {
+            if (!subject) return;
+
+            try {
+                const [docContent, quizContent, correctionsContent] = await Promise.all([
+                    loadMarkdownFile(`${subject}/${subject}-technical-doc.md`),
+                    loadMarkdownFile(`${subject}/${subject}-questionnaire.md`),
+                    loadMarkdownFile(`${subject}/${subject}-questionnaire-correction.md`)
+                ]);
+
+                document.getElementById('documentation').innerHTML = marked(docContent);
+                quizData = parseQuestions(quizContent);
+                corrections = parseCorrections(correctionsContent);
+
+                generateQuiz(quizData);
+                document.getElementById('documentation').classList.remove('hidden');
+                document.getElementById('quiz').classList.remove('hidden');
+                document.getElementById('validate').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading quiz data:', error);
+                document.body.innerHTML = '<h1>Error loading quiz data. Please try again later.</h1>';
+            }
+        }
+
+        function checkAnswers() {
+            const questions = document.querySelectorAll('.question');
+            let score = 0;
+
+            questions.forEach((question, index) => {
+                const feedback = question.querySelector('.feedback');
+                feedback.classList.remove('hidden');
+
+                const questionData = quizData[index];
+                const correctAnswer = corrections[questionData.question];
+
+                if (questionData.type === 'multiple') {
+                    const selectedAnswer = question.querySelector(`input[name="q${index}"]:checked`);
+                    if (selectedAnswer && selectedAnswer.value === correctAnswer) {
+                        feedback.textContent = "Correct !";
+                        feedback.classList.add('correct');
+                        score++;
+                    } else {
+                        feedback.textContent = `Incorrect. La bonne réponse est : ${correctAnswer}`;
+                        feedback.classList.add('incorrect');
+                    }
+                } else {
+                    const answer = document.getElementById(`q${index}`).value.trim().toLowerCase();
+                    if (answer.includes(correctAnswer.toLowerCase().split(' ')[0]) && answer.length > 10) {
+                        feedback.textContent = "Bonne compréhension générale. Voici la réponse complète :";
+                        feedback.classList.add('correct');
+                        score++;
+                    } else {
+                        feedback.textContent = "Réponse incomplète ou incorrecte. Voici la réponse attendue :";
+                        feedback.classList.add('incorrect');
+                    }
+                    feedback.innerHTML += `<br><br>${correctAnswer}`;
+                }
+            });
+
+            alert(`Votre score : ${score} / ${quizData.length}`);
+        }
+
+        listSubjects();
+    </script>
+</body>
+</html>
